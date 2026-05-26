@@ -1,0 +1,17 @@
+[project]
+name = "game-1"
+version = "0.1.0"
+description = "Raja Mantri Chor Sipahi — AI Cognitive Multi-Agent Simulation"
+requires-python = ">=3.11"
+dependencies = [
+    "google-adk>=0.4.0",
+    "google-genai>=0.8.0",
+    "pydantic>=2.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
