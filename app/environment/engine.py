@@ -14,7 +14,7 @@ class Engine:
     VOTE_THRESHOLD   = 2
     SPEAK_DELAY_SECS = 0.6
     ROUND_DELAY_SECS = 5.0
-    STAGGER_SECS     = 1.0
+    STAGGER_SECS     = 1.0   # delay between parallel LLM calls
 
     def __init__(
         self,
@@ -31,6 +31,8 @@ class Engine:
         )
         self._turn_order: list[str] = [a.agent_id for a in agents]
 
+    # ── Main loop ─────────────────────────────────────────────────────────────
+
     async def run(self):
         self._print_header()
 
@@ -45,6 +47,7 @@ class Engine:
 
             actions = await self._run_round()
 
+            # print observer log after each round
             self._print_observer_log(actions, round_num)
             self._print_trust_matrix()
 
@@ -57,11 +60,13 @@ class Engine:
             print(f"\n  [waiting {self.ROUND_DELAY_SECS}s before next round...]")
             await asyncio.sleep(self.ROUND_DELAY_SECS)
 
+    # ── Single round ──────────────────────────────────────────────────────────
 
     async def _run_round(self) -> list[tuple[str, AgentAction]]:
         active = [a for a in self._turn_order if a in self.state.active_agents]
         snapshot = self.state.snapshot()
 
+        # staggered parallel think — 1s apart to avoid 429s
         print(f"\n  [thinking in parallel...]\n")
 
         async def staggered_think(agent_id: str, delay: float) -> AgentAction:
@@ -75,7 +80,9 @@ class Engine:
 
         paired = list(zip(active, actions))
 
+        # sequential speech release
         for agent_id, action in paired:
+            # update agent memory with notable quotes from conversation
             self._update_agent_memory(agent_id, action, snapshot)
 
             self.state.add_message(agent_id, action.speech)
@@ -97,6 +104,8 @@ class Engine:
         await self._resolve_votes()
         return paired
 
+    # ── Memory update ─────────────────────────────────────────────────────────
+
     def _update_agent_memory(
         self,
         agent_id: str,
@@ -109,18 +118,22 @@ class Engine:
             f"Round {snapshot.round}: {action.inner_thought[:100]}"
         )
 
+        # note the most suspicious person's latest quote
         if action.suspicion:
             top_suspect = max(action.suspicion, key=action.suspicion.get)
+            # find their last message from conversation log
             for msg in reversed(self.state.conversation_log):
                 if msg.agent_id == top_suspect:
                     agent.memory.note_quote(top_suspect, msg.content, snapshot.round)
                     break
 
+        # update allies — trust anyone below 0.3 suspicion
         agent.memory.current_allies = [
             aid for aid, score in action.suspicion.items()
             if score < 0.3 and aid in self.state.active_agents
         ]
 
+        # shift emotional state based on suspicion levels
         max_suspicion = max(action.suspicion.values()) if action.suspicion else 0
         if max_suspicion > 0.8:
             agent.memory.emotional_state = "alarmed"
@@ -131,6 +144,7 @@ class Engine:
         else:
             agent.memory.emotional_state = "calm"
 
+    # ── Vote resolution ───────────────────────────────────────────────────────
 
     async def _resolve_votes(self):
         if not self.state.vote_tally:
@@ -150,10 +164,11 @@ class Engine:
         was_thief = eliminated == self.thief_id
 
         print(f"\n  {'─'*50}")
-        print(f"  ELIMINATED : {eliminated}")
-        print(f"  They were  : {'THE THIEF 🎭' if was_thief else 'innocent 😇'}")
+        print(f"  EXPOSED    : {eliminated}")
+        print(f"  They were  : {'THE SPY 🕵️' if was_thief else 'innocent 😇'}")
         print(f"  {'─'*50}")
 
+    # ── Win condition ─────────────────────────────────────────────────────────
 
     def _check_win(self) -> Optional[str]:
         if self.thief_id not in self.state.active_agents:
@@ -162,6 +177,7 @@ class Engine:
             return "thief"
         return None
 
+    # ── Observer log — prints inner thoughts ──────────────────────────────────
 
     def _print_observer_log(
         self,
@@ -186,6 +202,7 @@ class Engine:
                 print(f"    🗳 decided to vote:   {action.vote_target}")
             print()
 
+    # ── Probability matrix ────────────────────────────────────────────────────
 
     def _print_trust_matrix(self):
         active = self.state.active_agents
@@ -228,21 +245,22 @@ class Engine:
         return         f"✗ {p:.2f}"
 
 
+    # ── Pretty printing ───────────────────────────────────────────────────────
 
     def _print_header(self):
         print("\n" + "═"*60)
-        print("  RAJA MANTRI CHOR SIPAHI — AI Cognitive Simulation")
+        print("  DEEPBLUFF — Spy Among Agents")
         print("═"*60)
         print(f"  Players : {', '.join(self.state.active_agents)}")
-        print(f"  Rounds  : unlimited — until thief is caught")
-        print(f"  Thief   : [HIDDEN]")
+        print(f"  Rounds  : unlimited — until spy is exposed")
+        print(f"  Spy     : [HIDDEN]")
         print("═"*60)
 
     def _print_outcome(self, winner: str):
         print(f"\n{'═'*60}")
         if winner == "town":
-            print("  🏆  TOWN WINS — The Thief was caught!")
+            print("  🏆  TEAM WINS — The Spy was exposed!")
         else:
-            print("  🎭  THIEF WINS — The Thief escaped!")
-        print(f"  The Thief was: {self.thief_id}")
+            print("  🎭  SPY WINS — The Spy escaped!")
+        print(f"  The Spy was: {self.thief_id}")
         print("═"*60)

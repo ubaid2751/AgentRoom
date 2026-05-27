@@ -1,34 +1,29 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import random
+import sys
+import os
 
 from app.agent.base import CognitiveAgent, Role
 from app.environment.engine import Engine
 from app.environment.session_manager import SessionManager
-
-import logging
-
-logging.getLogger("opentelemetry").setLevel(logging.CRITICAL)
-logging.getLogger("google.adk").setLevel(logging.CRITICAL)
-logging.getLogger("google.adk.runners").setLevel(logging.CRITICAL)
 
 
 AGENT_IDS = ["Arjun", "Priya", "Rohan", "Meera"]
 
 
 def assign_roles(agent_ids: list[str]) -> dict[str, Role]:
-    roles = [Role.KING, Role.MINISTER, Role.POLICE, Role.THIEF]
+    roles = [Role.DETECTIVE, Role.ANALYST, Role.PSYCHOLOGIST, Role.SPY]
     random.shuffle(roles)
     return dict(zip(agent_ids, roles))
 
 
 async def main():
-    print("\nInitialising simulation...")
+    print("\nInitialising AgentRoom — Spy Among Agents\n")
 
     role_map = assign_roles(AGENT_IDS)
-    thief_id = next(aid for aid, role in role_map.items() if role == Role.THIEF)
+    spy_id   = next(aid for aid, role in role_map.items() if role == Role.SPY)
 
     agents = [
         CognitiveAgent(agent_id=aid, role=role_map[aid])
@@ -36,13 +31,13 @@ async def main():
     ]
 
     session_manager = SessionManager()
-    print("\nRegistering agents:")
+    print("Registering agents:")
     for agent in agents:
         await session_manager.register_agent(agent)
 
     engine = Engine(
         agents=agents,
-        thief_id=thief_id,
+        thief_id=spy_id,
         session_manager=session_manager,
     )
 
@@ -50,6 +45,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    import sys, os
     sys.stderr = open(os.devnull, 'w')
     asyncio.run(main())

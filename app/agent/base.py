@@ -7,12 +7,16 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class Role(str, Enum):
-    KING     = "king"
-    MINISTER = "minister"
-    POLICE   = "police"
-    THIEF    = "thief"
+# ── Role ──────────────────────────────────────────────────────────────────────
 
+class Role(str, Enum):
+    ANALYST      = "analyst"
+    DETECTIVE    = "detective"
+    PSYCHOLOGIST = "psychologist"
+    SPY          = "spy"
+
+
+# ── Structured output ─────────────────────────────────────────────────────────
 
 class AgentAction(BaseModel):
     inner_thought:     str
@@ -24,12 +28,14 @@ class AgentAction(BaseModel):
     vote_target:       Optional[str] = None
 
 
+# ── Memory ────────────────────────────────────────────────────────────────────
+
 class AgentMemory(BaseModel):
-    suspicion:          dict[str, float] = Field(default_factory=dict)
-    reflections:        list[str]        = Field(default_factory=list)
-    noted_quotes:       list[str]        = Field(default_factory=list)
-    current_allies:     list[str]        = Field(default_factory=list)
-    emotional_state:    str              = "calm"
+    suspicion:       dict[str, float] = Field(default_factory=dict)
+    reflections:     list[str]        = Field(default_factory=list)
+    noted_quotes:    list[str]        = Field(default_factory=list)
+    current_allies:  list[str]        = Field(default_factory=list)
+    emotional_state: str              = "calm"
 
     def update_from_action(self, action: AgentAction):
         self.suspicion.update(action.suspicion)
@@ -43,18 +49,16 @@ class AgentMemory(BaseModel):
         self.noted_quotes = self.noted_quotes[-8:]
 
 
+# ── Personality ───────────────────────────────────────────────────────────────
+
 class PersonalityConfig:
-    """
-    Rich personality definition — passed into the system prompt.
-    This is what makes agents feel like different people.
-    """
     def __init__(
         self,
-        speaking_style: str,
-        cognitive_bias: str,
+        speaking_style:  str,
+        cognitive_bias:  str,
         social_strategy: str,
-        backstory: str,
-        tells: str,
+        backstory:       str,
+        tells:           str,
     ):
         self.speaking_style  = speaking_style
         self.cognitive_bias  = cognitive_bias
@@ -107,7 +111,7 @@ PERSONALITIES = {
         ),
         tells=(
             "When she's wrong and knows it, doubles down harder instead of backing off. "
-            "Gets quieter — not louder — when truly suspicious of someone."
+            "Gets quieter when truly suspicious of someone."
         ),
     ),
 
@@ -158,81 +162,91 @@ PERSONALITIES = {
         ),
         tells=(
             "When uncomfortable, becomes even more silent than usual. "
-            "Will repeat a question multiple times if she doesn't get a straight answer — "
-            "and she remembers every non-answer."
+            "Will repeat a question multiple times if she doesn't get a straight answer."
         ),
     ),
 }
 
 
-THIEF_TACTICS = """
-You are the THIEF. Your life depends on not being caught. Use these tactics:
+# ── Role context ──────────────────────────────────────────────────────────────
+
+SPY_TACTICS = """
+You are the SPY. You have been leaking classified intelligence to an outside party.
+Everyone in this room is trying to expose you. Your only goal is to survive.
 
 EARLY GAME (rounds 1-2):
-- Blend in. Ask questions instead of answering them.
-- Pick one person to subtly cast doubt on — not aggressively, just plant seeds.
-- Appear cooperative and reasonable.
+- Appear cooperative. Ask questions about process and methodology.
+- Pick one person early and plant subtle doubt about them. Nothing aggressive — just a seed.
+- Seem invested in finding the spy. You are one of them, after all.
 
 MID GAME (rounds 3-5):
-- If someone suspects you, immediately pivot and accuse them back with conviction.
-- Form a fake alliance with the most vocal non-suspicious person.
-- Reference specific things others said to appear like you're paying close attention.
+- If someone suspects you, immediately redirect toward them with conviction.
+- Form a quiet alliance with whoever seems most rational — they become your shield.
+- Reference specific things others said to appear like you are paying close attention.
+- Never be the most vocal person in the room. That draws attention.
 
 LATE GAME (rounds 5+):
-- If you're cornered, manufacture doubt about the most trusted person.
-- Act slightly hurt/offended by accusations — emotional response reads as innocent.
-- Never be the first to vote. Wait, then vote strategically.
+- If cornered, manufacture doubt about the most trusted person in the group.
+- Show emotion — looking hurt or offended reads as innocent.
+- Never vote first. Wait to see which way the room is going, then vote strategically.
 
 ALWAYS:
-- Never deny being the thief directly. Deflect instead.
-- Keep track of who you've successfully misled — maintain consistency with them.
+- Never deny being the spy directly. Deflect with questions instead.
+- Stay consistent with anyone you have successfully misled.
 - If two people are arguing, stay out of it and let them destroy each other.
+- Your cover story is that you are as desperate to find the spy as everyone else.
 """
 
 ROLE_CONTEXT = {
-    Role.THIEF: THIEF_TACTICS,
-    Role.POLICE: """
-You are the POLICE. You are trained to catch liars.
+    Role.SPY: SPY_TACTICS,
+
+    Role.DETECTIVE: """
+You are the DETECTIVE. You have been brought in specifically to identify the spy.
 
 Your approach:
-- Note every evasion, contradiction, and deflection.
-- Ask the same question multiple ways — liars give inconsistent answers.
-- Pay attention to WHO benefits from each accusation.
-- Don't reveal your role unless it helps catch the thief.
-- Form an alliance with the Minister if you identify them.
-- Be suspicious of people who redirect conversations too smoothly.
-- Reference specific quotes and inconsistencies when making accusations.
+- Track every evasion, contradiction, and deflection across rounds.
+- Ask the same question in different ways — a spy gives inconsistent answers over time.
+- Pay attention to who benefits from each accusation made in the room.
+- Do not reveal your role unless it gives you a tactical advantage.
+- Build a quiet alliance with whoever seems most rational and observant.
+- When you are confident, make a precise, evidence-based accusation. Not before.
+- Your goal is to expose the spy. Everything else is secondary.
 """,
-    Role.MINISTER: """
-You are the MINISTER. You are politically shrewd.
+
+    Role.ANALYST: """
+You are the ANALYST. You are trained to find patterns in behavior and information.
 
 Your approach:
-- Think about alliances — who is working together against you?
-- The Thief will try to use you as a shield. Notice if someone keeps agreeing with you.
-- Share observations selectively — don't give away everything you know.
-- Help the Police and King, but protect your own position too.
-- Watch for behavioral patterns across rounds, not just individual statements.
+- Look for inconsistencies between what people say across different rounds.
+- Track who changes their position and why.
+- Notice when someone avoids a direct question or answers a different question entirely.
+- Data over gut feeling — form hypotheses and test them through conversation.
+- You are not confrontational by nature but you are relentless with evidence.
+- Your goal is to expose the spy. Accuracy matters more than speed.
 """,
-    Role.KING: """
-You are the KING. You have authority but need others' help.
+
+    Role.PSYCHOLOGIST: """
+You are the PSYCHOLOGIST. You read people, not just words.
 
 Your approach:
-- Listen more than you speak early on.
-- Weigh all arguments carefully before committing to an accusation.
-- Use your authority to demand direct answers when someone keeps evading.
-- The Police and Minister should ideally reveal themselves to you privately.
-- Make the final call decisively — indecision loses the game.
-- Remember: the Thief will try to seem most helpful to you.
+- Study emotional reactions more than the content of what is said.
+- Watch for stress responses — overexplaining, sudden aggression, false calm.
+- Notice who forms alliances and why. Alliance behavior reveals self-interest.
+- Let others talk. The more someone speaks under pressure, the more they reveal.
+- A spy often reacts before thinking when cornered — watch for that slip.
+- Your goal is to expose the spy. Trust your read of the room.
 """,
 }
 
 
+# ── Cognitive Agent ────────────────────────────────────────────────────────────
+
 class CognitiveAgent:
     def __init__(
         self,
-        agent_id:    str,
-        role:        Role,
-        model:       str = "gemini-2.0-flash",
+        agent_id: str,
+        role:     Role,
+        model:    str = "gemini-2.0-flash",
     ):
         self.agent_id    = agent_id
         self.role        = role
@@ -243,8 +257,9 @@ class CognitiveAgent:
 
     def _build_system_prompt(self) -> str:
         p = self.personality
-        return f"""You are {self.agent_id}. You are a real person sitting in a room with three others.
-One person in this room is a thief. Everyone is trying to figure out who.
+        return f"""You are {self.agent_id}. You are sitting in a closed room with three others.
+Classified intelligence has been leaked. One person in this room is the spy responsible.
+Everyone else is trying to expose them before they can deflect blame onto someone innocent.
 
 ═══ WHO YOU ARE ═══
 SPEAKING STYLE  : {p.speaking_style}
@@ -253,17 +268,17 @@ SOCIAL STRATEGY : {p.social_strategy}
 BACKSTORY       : {p.backstory}
 YOUR TELLS      : {p.tells}
 
-═══ YOUR SECRET ROLE ═══
+═══ YOUR ROLE ═══
 {ROLE_CONTEXT[self.role]}
 
 ═══ RULES ═══
 - Respond ONLY with a valid JSON object. No markdown, no extra text.
 - inner_thought: your honest private reasoning. Be specific. Reference what others said.
 - speech: what you say out loud. Match your speaking style. Sound like a real person.
-- suspicion: score every OTHER active player from 0.0 (fully trust) to 1.0 (certain thief).
-- Use your personality consistently — don't suddenly change how you talk or think.
-- Reference specific things others have said in previous rounds.
-- React emotionally when appropriate — surprise, frustration, doubt, relief.
+- suspicion: score every OTHER active player 0.0 (fully trust) to 1.0 (certain spy).
+- Stay consistent with your personality across every round.
+- Reference specific things others said in previous rounds when relevant.
+- React emotionally when appropriate — frustration, suspicion, doubt, relief.
 - Never break character. Never mention you are an AI.
 
 JSON schema:
@@ -298,7 +313,7 @@ JSON schema:
         )
         accusations_str = (
             "\n".join(
-                f"  {a['accuser']} → {a['target']} (round {a['round']})"
+                f"  {a['accuser']} -> {a['target']} (round {a['round']})"
                 for a in snapshot.accusation_log
             ) or "  None yet."
         )
@@ -307,23 +322,23 @@ JSON schema:
             or "  No votes cast."
         )
 
-        return f"""═══ SITUATION: ROUND {snapshot.round} ═══
+        return f"""=== SITUATION: ROUND {snapshot.round} ===
 
 ACTIVE PLAYERS : {', '.join(snapshot.active_agents)}
-ELIMINATED     : {', '.join(snapshot.eliminated_agents) or 'None yet'}
+EXPOSED        : {', '.join(snapshot.eliminated_agents) or 'None yet'}
 YOUR ALLIES    : {allies_str}
 YOUR MOOD      : {self.memory.emotional_state}
 
-═══ PUBLIC CONVERSATION ═══
+=== PUBLIC CONVERSATION ===
 {snapshot.global_log}
 
-═══ ACCUSATIONS SO FAR ═══
+=== ACCUSATIONS SO FAR ===
 {accusations_str}
 
-═══ VOTE TALLY ═══
+=== VOTE TALLY ===
 {vote_str}
 
-═══ YOUR PRIVATE MEMORY ═══
+=== YOUR PRIVATE MEMORY ===
 Suspicion scores:
 {suspicion_str}
 
@@ -333,7 +348,7 @@ Things that felt off (specific quotes you noted):
 Your recent reflections:
 {reflections_str}
 
-═══ YOUR TASK ═══
+=== YOUR TASK ===
 You are {self.agent_id}. Your speaking style: {p.speaking_style}
 React to what just happened. Reference specific things others said if relevant.
 Be strategic. Be human. Respond with the JSON object only.
